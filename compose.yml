@@ -1,0 +1,58 @@
+services:
+  3xui:
+    image: ghcr.io/mhsanaei/3x-ui:latest
+    container_name: 3xui
+    hostname: vpn
+    volumes:
+      - ./db/:/etc/x-ui/
+      - ./cert/:/root/cert/
+    environment:
+      XRAY_VMESS_AEAD_FORCED: "false"
+    tty: true
+    network_mode: host
+    restart: unless-stopped
+    depends_on:
+      - unbound
+    cap_add:
+      - ALL
+    dns:
+      - 10.2.0.100
+
+  unbound:
+    image: mvance/unbound:latest
+    container_name: unbound
+    restart: unless-stopped
+    hostname: unbound
+    volumes:
+      - ./build/unbound:/opt/unbound/etc/unbound/
+    networks:
+      private_network:
+        ipv4_address: 10.2.0.100
+    cap_add:
+      - NET_ADMIN
+
+  tg_bot:
+    image: python:3.13-alpine3.21
+    volumes:
+      - ./:/app
+      - ./build/vpn_tg_bot/entrypoint.sh:/entrypoint.sh
+    entrypoint: /entrypoint.sh
+    env_file:
+      - .env
+    depends_on:
+      - db
+
+  db:
+    image: postgres:17-alpine3.21
+    restart: on-failure
+    env_file:
+      - .env
+    volumes:
+        - "./build/data:/var/lib/postgresql/data"
+
+networks:
+  private_network:
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.2.0.0/24
